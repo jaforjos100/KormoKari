@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- KormoKari Official Brand Tokens -->
+    <color name="kormokari_primary">#E91069</color>
+    <color name="kormokari_primary_dark">#B90D57</color>
+    <color name="kormokari_primary_gradient_start">#F60970</color>
+    <color name="kormokari_navy">#111827</color>
+    <color name="kormokari_blue_accent">#3B82F6</color>
+    <color name="kormokari_surface">#FFFFFF</color>
+    <color name="kormokari_background">#F7F8FC</color>
+    <color name="kormokari_splash_background">#FBF9FB</color>
+    <color name="kormokari_splash_offwhite_pink">#FFF6FA</color>
+    <color name="kormokari_pale_pink">#FFF0F7</color>
+    <color name="kormokari_border">#E6EAF1</color>
+    <color name="kormokari_text_muted">#64748B</color>
+    <color name="kormokari_success">#10B981</color>
+    <color name="kormokari_danger">#EF4444</color>
+
+    <!-- Legacy / Compatibility Tokens -->
+    <color name="ic_launcher_background">#E91069</color>
+    <color name="splash_background">#E91069</color>
+    <color name="black">#FF111827</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

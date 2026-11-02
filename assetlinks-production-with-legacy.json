@@ -1,0 +1,22 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.kormokari.app",
+      "sha256_cert_fingerprints": [
+        "<INSERT_ACTUAL_RELEASE_OR_PLAY_APP_SIGNING_SHA256_FINGERPRINT_HERE>"
+      ]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.workdorkar.app",
+      "sha256_cert_fingerprints": [
+        "<PRESERVE_EXISTING_WORKDORKAR_SHA256_FINGERPRINT_IF_STILL_ACTIVE>"
+      ]
+    }
+  }
+]

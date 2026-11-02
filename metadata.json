@@ -1,0 +1,6 @@
+{
+  "name": "KormoKari",
+  "description": "KormoKari Android application launching the verified KormoKari PWA platform with native launch, splash, and recovery.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

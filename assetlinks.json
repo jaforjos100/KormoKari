@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.kormokari.app",
+      "sha256_cert_fingerprints": [
+        "0A:91:A8:C0:9D:39:81:B6:3D:56:CF:92:B7:8A:BD:F1:59:69:3A:27:02:60:9F:44:8E:A9:3A:DD:A8:F0:F3:5F"
+      ]
+    }
+  }
+]
