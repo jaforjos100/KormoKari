@@ -44,6 +44,7 @@ coreSplashscreen = "1.0.1"
 androidxBrowser = "1.8.0"
 androidBrowserHelper = "2.5.0"
 swiperefreshlayout = "1.1.0"
+playAppUpdate = "2.1.0"
 
 
 [libraries]
@@ -103,6 +104,8 @@ androidx-credentials = { group = "androidx.credentials", name = "credentials", v
 androidx-credentials-play-services = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
 googleid = { group = "com.google.android.libraries.identity.googleid", name = "googleid", version.ref = "googleid" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
+play-app-update = { group = "com.google.android.play", name = "app-update", version.ref = "playAppUpdate" }
+play-app-update-ktx = { group = "com.google.android.play", name = "app-update-ktx", version.ref = "playAppUpdate" }
 
 
 [plugins]

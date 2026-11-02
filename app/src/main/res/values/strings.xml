@@ -50,8 +50,8 @@
     <string name="exit_dialog_message">Are you sure you want to close the app? Any active session or job search will be closed.</string>
     <string name="exit_dialog_confirm">Exit App</string>
     <string name="exit_dialog_cancel">Stay</string>
-    <string name="trouble_connecting_heading">KormoKari is Temporarily Unavailable</string>
-    <string name="trouble_connecting_heading_bn">কর্মকারী সাময়িকভাবে অনুপলব্ধ</string>
+    <string name="trouble_connecting_heading">We\'re Having Trouble Connecting</string>
+    <string name="trouble_connecting_heading_bn">সংযোগ করতে সমস্যা হচ্ছে</string>
     <string name="trouble_connecting_desc">Please try again in a moment.</string>
     <string name="trouble_connecting_desc_bn">অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।</string>
     <string name="server_not_ready_title">SERVER_NOT_READY</string>

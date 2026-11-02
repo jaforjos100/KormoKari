@@ -1066,15 +1066,15 @@ class ExampleRobolectricTest {
         val facadeJs = com.example.permission.KormoKariWebMessageProtocolHandler.JS_FACADE_BOOTSTRAP
         assertTrue(facadeJs.contains("window.KormoKariAndroid"))
         assertTrue(facadeJs.contains("architecture: 'webview'"))
-        assertTrue(facadeJs.contains("version: '3.9.7'"))
+        assertTrue(facadeJs.contains("version: '3.10.0'"))
         assertTrue(facadeJs.contains("package: 'com.kormokari.app'"))
         assertTrue(facadeJs.contains("origin: 'https://kormokari.com'"))
     }
 
     @Test
-    fun `verify app version constants match 3_9_7`() {
-        assertEquals("3.9.7", KormoKariConfig.VERSION_NAME)
-        assertEquals(30907, KormoKariConfig.VERSION_CODE)
+    fun `verify app version constants match 3_10_0`() {
+        assertEquals("3.10.0", KormoKariConfig.VERSION_NAME)
+        assertEquals(31000, KormoKariConfig.VERSION_CODE)
     }
 
     @Test
@@ -1117,6 +1117,58 @@ class ExampleRobolectricTest {
         // Test battery optimization exemption trigger
         val batResult = handler.requestBatteryOptimizationExemption()
         assertTrue(batResult)
+    }
+
+    @Test
+    fun `verify Solution A OAuth callback deep linking and BrandedCustomTabsHelper callback identification`() {
+        assertTrue(com.example.auth.BrandedCustomTabsHelper.isAuthCallbackUrl("https://kormokari.com/auth/google/callback?code=xyz"))
+        assertTrue(com.example.auth.BrandedCustomTabsHelper.isAuthCallbackUrl("https://kormokari.com/auth/facebook/callback?code=abc"))
+        assertTrue(com.example.auth.BrandedCustomTabsHelper.isAuthCallbackUrl("https://kormokari.com/auth/handoff?token=123"))
+        assertTrue(com.example.auth.BrandedCustomTabsHelper.isAuthCallbackUrl("https://www.kormokari.com/auth/google/callback"))
+        assertTrue(com.example.auth.BrandedCustomTabsHelper.isAuthCallbackUrl("kormokari://auth-callback?status=success"))
+
+        // Callbacks MUST NOT be classified as social auth initiation URLs (to keep them inside WebView)
+        assertFalse(com.example.auth.BrandedCustomTabsHelper.isSocialAuthUrl("https://kormokari.com/auth/google/callback?code=xyz"))
+        assertFalse(com.example.auth.BrandedCustomTabsHelper.isSocialAuthUrl("https://kormokari.com/auth/facebook/callback"))
+        assertFalse(com.example.auth.BrandedCustomTabsHelper.isSocialAuthUrl("https://kormokari.com/auth/handoff"))
+
+        // Standard auth start endpoints should still be social auth URLs
+        assertTrue(com.example.auth.BrandedCustomTabsHelper.isSocialAuthUrl("https://kormokari.com/auth/google"))
+        assertTrue(com.example.auth.BrandedCustomTabsHelper.isSocialAuthUrl("https://kormokari.com/auth/facebook"))
+    }
+
+    @Test
+    fun `verify Solution B KormoKariAndroid JavaScript interface constant`() {
+        assertEquals("KormoKariAndroid", com.example.auth.KormoKariAuthBridge.JAVASCRIPT_INTERFACE_KORMOKARI_ANDROID)
+        assertEquals("KormoKariAuthBridge", com.example.auth.KormoKariAuthBridge.JAVASCRIPT_INTERFACE_NAME)
+        assertEquals("AndroidAuthBridge", com.example.auth.KormoKariAuthBridge.JAVASCRIPT_INTERFACE_ALIAS)
+    }
+
+    @Test
+    fun `verify KormoKariAndroidBridge instantiates and handles requestGoogleSignIn and requestFacebookSignIn without crash`() {
+        val activity = org.robolectric.Robolectric.buildActivity(androidx.activity.ComponentActivity::class.java).setup().get()
+        val webView = android.webkit.WebView(activity)
+        val bridge = com.example.auth.KormoKariAndroidBridge(activity, webView)
+
+        bridge.requestGoogleSignIn()
+        bridge.requestGoogleSignIn("testNonce")
+        bridge.requestFacebookSignIn()
+        bridge.requestFacebookSignIn("testNonce")
+        bridge.checkForAppUpdate()
+        bridge.checkForAppUpdate(true)
+        bridge.completeAppUpdate()
+    }
+
+    @Test
+    fun `verify KormoKariAppUpdateManager initialization and lifecycle in MainActivity`() {
+        val activity = org.robolectric.Robolectric.buildActivity(com.example.MainActivity::class.java).setup().get()
+        assertNotNull(activity.appUpdateManager)
+
+        // Verify update manager methods execute gracefully without throwing in test environment
+        activity.appUpdateManager.checkForUpdate(isImmediate = false)
+        activity.appUpdateManager.onResume()
+        activity.appUpdateManager.notifyUpdateDownloaded()
+        activity.appUpdateManager.onDestroy()
     }
 }
 

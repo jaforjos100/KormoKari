@@ -80,7 +80,21 @@ object BrandedCustomTabsHelper {
      */
     fun isSocialAuthUrl(urlString: String?): Boolean {
         if (urlString.isNullOrBlank()) return false
+        if (isAuthCallbackUrl(urlString)) return false
         return isFacebookAuthUrl(urlString) || isGoogleAuthUrl(urlString)
+    }
+
+    /**
+     * Checks if the URL is an OAuth callback / handoff destination intended to return
+     * session credentials directly into the main application container.
+     */
+    fun isAuthCallbackUrl(urlString: String?): Boolean {
+        if (urlString.isNullOrBlank()) return false
+        val lower = urlString.lowercase()
+        return lower.contains("/auth/google/callback") ||
+                lower.contains("/auth/facebook/callback") ||
+                lower.contains("/auth/handoff") ||
+                lower.contains("auth-callback")
     }
 
     /**

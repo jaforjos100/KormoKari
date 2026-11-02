@@ -21,8 +21,8 @@ object KormoKariConfig {
      */
     const val APP_NAME = "KormoKari"
     const val TAGLINE = "Find work. Create opportunity."
-    const val VERSION_NAME = "3.9.7"
-    const val VERSION_CODE = 30907
+    const val VERSION_NAME = "3.10.0"
+    const val VERSION_CODE = 31000
 
     /**
      * Default Google OAuth Web Client ID for Credential Manager token requests.
@@ -99,6 +99,8 @@ object KormoKariConfig {
      */
     const val GOOGLE_AUTH_URL = "https://kormokari.com/auth/google"
     const val FACEBOOK_AUTH_URL = "https://kormokari.com/auth/facebook"
+    const val GOOGLE_REDIRECT_URL = "https://kormokari.com/auth/google/redirect"
+    const val FACEBOOK_REDIRECT_URL = "https://kormokari.com/auth/facebook/redirect"
     const val GOOGLE_CALLBACK_PATH = "/auth/google/callback"
     const val FACEBOOK_CALLBACK_PATH = "/auth/facebook/callback"
     const val OAUTH_CUSTOM_SCHEME = "kormokari"

@@ -63,6 +63,12 @@ class KormoKariAuthBridge(
          */
         const val JAVASCRIPT_INTERFACE_ALIAS = "AndroidAuthBridge"
 
+        /**
+         * Standard Android bridge name for web integrations:
+         * `window.KormoKariAndroid`
+         */
+        const val JAVASCRIPT_INTERFACE_KORMOKARI_ANDROID = "KormoKariAndroid"
+
         // Error codes returned to the web client
         const val ERROR_UNTRUSTED_ORIGIN = "UNTRUSTED_ORIGIN"
         const val ERROR_USER_CANCELLED = "USER_CANCELLED"
@@ -146,18 +152,101 @@ class KormoKariAuthBridge(
     }
 
     /**
-     * Initiates the secure native Google account selection flow using the default server client ID.
+     * Solution B: Native Google Credential Manager entry point exposed on:
+     * `window.KormoKariAndroid.requestGoogleSignIn(nonce)`
      *
-     * @param callbackFunctionName The name of the JavaScript function to invoke with results.
+     * 1. Launches CredentialManager.getCredential(...) with GetGoogleIdOption.
+     * 2. Dispatches Google ID Token back via:
+     *    `window.KormoKariAndroidBridge.onGoogleCredentialReceived('${googleIdToken}', '${nonce}');`
      */
     @JavascriptInterface
-    fun requestGoogleSignIn(callbackFunctionName: String) {
-        requestGoogleSignInWithConfig(
-            callbackFunctionName = callbackFunctionName,
-            serverClientId = null,
-            nonce = null,
-            fallbackUrl = null
-        )
+    fun requestGoogleSignIn() {
+        requestGoogleSignIn(null as String?)
+    }
+
+    @JavascriptInterface
+    fun requestGoogleSignIn(nonce: String?) {
+        val currentUrl = getCurrentWebViewUrl()
+        if (!isOriginTrusted(currentUrl)) {
+            Log.e(TAG, "Blocked Google Sign-In request from untrusted origin: $currentUrl")
+            return
+        }
+
+        val activity = activityRef.get()
+        if (activity == null || activity.isFinishing || activity.isDestroyed) {
+            Log.e(TAG, "Host Android activity is no longer active.")
+            return
+        }
+
+        val effectiveClientId = defaultServerClientId
+        if (effectiveClientId.isBlank()) {
+            Log.e(TAG, "Google OAuth Server Client ID is not configured.")
+            return
+        }
+
+        coroutineScope.launch {
+            try {
+                val googleIdOption = GetGoogleIdOption.Builder()
+                    .setFilterByAuthorizedAccounts(false)
+                    .setServerClientId(effectiveClientId)
+                    .setAutoSelectEnabled(false)
+                    .apply {
+                        if (!nonce.isNullOrBlank()) {
+                            setNonce(nonce.trim())
+                        }
+                    }
+                    .build()
+
+                val credentialRequest = GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOption)
+                    .build()
+
+                val credentialResponse = withContext(Dispatchers.IO) {
+                    credentialManager.getCredential(
+                        request = credentialRequest,
+                        context = activity
+                    )
+                }
+
+                val credential = credentialResponse.credential
+                if (credential is CustomCredential &&
+                    credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                ) {
+                    val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                    val idToken = googleIdTokenCredential.idToken
+                    val safeNonce = nonce ?: ""
+
+                    withContext(Dispatchers.Main) {
+                        val webView = webViewProvider()
+                        val js = "if (window.KormoKariAndroidBridge && typeof window.KormoKariAndroidBridge.onGoogleCredentialReceived === 'function') { window.KormoKariAndroidBridge.onGoogleCredentialReceived('${idToken}', '${safeNonce}'); }"
+                        webView?.evaluateJavascript(js, null)
+
+                        if (!nonce.isNullOrBlank() && isValidCallbackName(nonce)) {
+                            sendSuccessToWeb(
+                                callbackName = nonce,
+                                idToken = idToken,
+                                email = googleIdTokenCredential.id,
+                                displayName = googleIdTokenCredential.displayName,
+                                familyName = googleIdTokenCredential.familyName,
+                                givenName = googleIdTokenCredential.givenName,
+                                profilePictureUri = googleIdTokenCredential.profilePictureUri?.toString()
+                            )
+                        }
+                    }
+                } else {
+                    Log.w(TAG, "Unsupported credential type from provider, launching Custom Tab fallback")
+                    launchCustomTabInternal(KormoKariConfig.GOOGLE_AUTH_URL)
+                }
+            } catch (e: GetCredentialCancellationException) {
+                Log.i(TAG, "Google Sign-In dismissed by user")
+            } catch (e: NoCredentialException) {
+                Log.w(TAG, "No Google accounts available on device, launching Custom Tab fallback")
+                launchCustomTabInternal(KormoKariConfig.GOOGLE_AUTH_URL)
+            } catch (e: Exception) {
+                Log.e(TAG, "Credential Manager error, falling back to Custom Tab: ${e.message}")
+                launchCustomTabInternal(KormoKariConfig.GOOGLE_AUTH_URL)
+            }
+        }
     }
 
     /**
@@ -299,6 +388,13 @@ class KormoKariAuthBridge(
                     val familyName = googleIdTokenCredential.familyName
                     val givenName = googleIdTokenCredential.givenName
                     val profilePictureUri = googleIdTokenCredential.profilePictureUri?.toString()
+
+                    val safeNonce = nonce ?: ""
+                    withContext(Dispatchers.Main) {
+                        val webView = webViewProvider()
+                        val js = "if (window.KormoKariAndroidBridge && typeof window.KormoKariAndroidBridge.onGoogleCredentialReceived === 'function') { window.KormoKariAndroidBridge.onGoogleCredentialReceived('${idToken}', '${safeNonce}'); }"
+                        webView?.evaluateJavascript(js, null)
+                    }
 
                     sendSuccessToWeb(
                         callbackName = callbackFunctionName,
@@ -458,7 +554,14 @@ class KormoKariAuthBridge(
     private fun launchCustomTabInternal(url: String): Boolean {
         val activity = activityRef.get() ?: return false
         if (activity.isFinishing || activity.isDestroyed) return false
-        return BrandedCustomTabsHelper.launchBrandedCustomTab(activity, Uri.parse(url))
+        return if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            BrandedCustomTabsHelper.launchBrandedCustomTab(activity, Uri.parse(url))
+        } else {
+            activity.runOnUiThread {
+                BrandedCustomTabsHelper.launchBrandedCustomTab(activity, Uri.parse(url))
+            }
+            true
+        }
     }
 
     /**

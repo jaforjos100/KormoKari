@@ -79,8 +79,25 @@ class MainActivity : ComponentActivity() {
     private lateinit var twaLauncher: KormoKariTwaLauncher
     private lateinit var fcmTokenManager: FcmTokenManager
     private lateinit var offlineJobRepository: com.example.data.local.OfflineJobRepository
+    lateinit var appUpdateManager: com.example.update.KormoKariAppUpdateManager
+
+    var pendingAuthCallbackUrl: String? = null
 
     var activeWebView: android.webkit.WebView? = null
+        set(value) {
+            field = value
+            if (value != null && !pendingAuthCallbackUrl.isNullOrBlank()) {
+                val callbackUrl = pendingAuthCallbackUrl!!
+                pendingAuthCallbackUrl = null
+                value.post {
+                    android.webkit.CookieManager.getInstance().flush()
+                    value.loadUrl(callbackUrl)
+                }
+            }
+        }
+
+    val activeWebViewInstance: android.webkit.WebView?
+        get() = activeWebView
     var fileChooserCallback: android.webkit.ValueCallback<Array<android.net.Uri>>? = null
 
     val pickVisualMediaLauncher = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -129,6 +146,7 @@ class MainActivity : ComponentActivity() {
         val splashScreen = installSplashScreen()
 
         super.onCreate(savedInstanceState)
+        handleOAuthCallback(intent)
         // Keep Android navigation bar and status bar styled to match Android theme
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(
@@ -148,6 +166,11 @@ class MainActivity : ComponentActivity() {
         fcmTokenManager = FcmTokenManager(applicationContext)
         offlineJobRepository = com.example.data.local.OfflineJobRepository(applicationContext)
         NotificationChannelHelper.createNotificationChannels(applicationContext)
+
+        // Initialize Google Play In-App Update flow
+        appUpdateManager = com.example.update.KormoKariAppUpdateManager(this)
+        appUpdateManager.registerLauncher()
+        appUpdateManager.checkForUpdate(isImmediate = false)
 
         // 3. Keep the native splash screen visible until TWA content is ready for interaction
         splashScreen.setKeepOnScreenCondition {
@@ -407,11 +430,39 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        val targetUrl = extractTargetUrl(intent)
-        if (!targetUrl.isNullOrBlank()) {
-            android.webkit.CookieManager.getInstance().flush()
-            startupViewModel.attemptLaunch(this, targetUrl, forceRelaunch = true)
+        val handled = handleOAuthCallback(intent)
+        if (!handled) {
+            val targetUrl = extractTargetUrl(intent)
+            if (!targetUrl.isNullOrBlank()) {
+                android.webkit.CookieManager.getInstance().flush()
+                startupViewModel.attemptLaunch(this, targetUrl, forceRelaunch = true)
+            }
         }
+    }
+
+    private fun handleOAuthCallback(intent: Intent?): Boolean {
+        val uri = intent?.data ?: return false
+        val url = uri.toString()
+        val host = uri.host?.lowercase()
+        val path = uri.path ?: ""
+        if ((host == "kormokari.com" || host == "www.kormokari.com") && (
+            path.startsWith("/auth/google/callback") ||
+            path.startsWith("/auth/facebook/callback") ||
+            path.startsWith("/auth/handoff")
+        )) {
+            android.webkit.CookieManager.getInstance().flush()
+            val webView = activeWebViewInstance
+            if (webView != null) {
+                webView.post {
+                    webView.loadUrl(url)
+                }
+            } else {
+                pendingAuthCallbackUrl = url
+                startupViewModel.attemptLaunch(this, url, forceRelaunch = true)
+            }
+            return true
+        }
+        return false
     }
 
     private fun extractTargetUrl(intent: Intent?): String? {
@@ -435,6 +486,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (::appUpdateManager.isInitialized) {
+            appUpdateManager.onResume()
+        }
         if (::networkMonitor.isInitialized) {
             startupViewModel.onResumeActivity(this)
         }
@@ -454,5 +508,22 @@ class MainActivity : ComponentActivity() {
             """.trimIndent(),
             null
         )
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (::appUpdateManager.isInitialized) {
+            appUpdateManager.onDestroy()
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == com.example.update.KormoKariAppUpdateManager.UPDATE_REQUEST_CODE) {
+            if (resultCode != RESULT_OK) {
+                android.util.Log.w("MainActivity", "In-app update flow failed or was cancelled by user. Result code: $resultCode")
+            }
+        }
     }
 }

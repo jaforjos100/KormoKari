@@ -114,6 +114,9 @@
                 <data android:scheme="https" android:host="kormokari.com" android:pathPrefix="/auth/google/callback" />
                 <data android:scheme="https" android:host="kormokari.com" android:pathPrefix="/auth/facebook/callback" />
                 <data android:scheme="https" android:host="kormokari.com" android:pathPrefix="/auth/handoff" />
+                <data android:scheme="https" android:host="www.kormokari.com" android:pathPrefix="/auth/google/callback" />
+                <data android:scheme="https" android:host="www.kormokari.com" android:pathPrefix="/auth/facebook/callback" />
+                <data android:scheme="https" android:host="www.kormokari.com" android:pathPrefix="/auth/handoff" />
             </intent-filter>
 
             <!-- In-App OAuth custom scheme callback filter for social login return -->

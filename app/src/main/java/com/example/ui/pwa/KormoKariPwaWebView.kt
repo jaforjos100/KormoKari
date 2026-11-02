@@ -377,6 +377,16 @@ fun KormoKariPwaWebView(
                             addJavascriptInterface(authBridge, KormoKariAuthBridge.JAVASCRIPT_INTERFACE_NAME)
                             addJavascriptInterface(authBridge, KormoKariAuthBridge.JAVASCRIPT_INTERFACE_ALIAS)
 
+                            if (activity is androidx.activity.ComponentActivity) {
+                                val androidBridge = com.example.auth.KormoKariAndroidBridge(
+                                    activity = activity,
+                                    webView = webViewInstance ?: this
+                                )
+                                addJavascriptInterface(androidBridge, "KormoKariAndroid")
+                            } else {
+                                addJavascriptInterface(authBridge, KormoKariAuthBridge.JAVASCRIPT_INTERFACE_KORMOKARI_ANDROID)
+                            }
+
                             // Register native runtime permissions & live GPS dispatch bridge
                             val permissionsBridge = com.example.permission.KormoKariPermissionsBridge(
                                 activity = activity,

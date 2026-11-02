@@ -54,7 +54,7 @@ class KormoKariWebMessageProtocolHandler(
                     window.KormoKariAndroid = {
                         architecture: 'webview',
                         platform: 'android',
-                        version: '3.9.7',
+                        version: '3.10.0',
                         package: 'com.kormokari.app',
                         origin: 'https://kormokari.com'
                     };

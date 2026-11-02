@@ -117,7 +117,7 @@ class AppAvailabilityManager(
                     version = version,
                     available = available,
                     mode = mode,
-                    message = json.optString("message", null)
+                    message = if (json.has("message") && !json.isNull("message")) json.getString("message") else null
                 )
 
                 if (!status.equals("ready", ignoreCase = true)) {

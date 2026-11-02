@@ -16,8 +16,8 @@ android {
     applicationId = "com.kormokari.app"
     minSdk = 24
     targetSdk = 36
-    versionCode = 30907
-    versionName = "3.9.7"
+    versionCode = 31000
+    versionName = "3.10.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -135,6 +135,8 @@ dependencies {
   implementation(libs.moshi.kotlin)
   implementation(libs.okhttp)
   implementation(libs.play.services.location)
+  implementation(libs.play.app.update)
+  implementation(libs.play.app.update.ktx)
   implementation(libs.retrofit)
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
