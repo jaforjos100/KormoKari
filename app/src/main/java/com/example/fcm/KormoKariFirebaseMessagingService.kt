@@ -50,6 +50,12 @@ class KormoKariFirebaseMessagingService : FirebaseMessagingService() {
         fun resolveChannelId(data: Map<String, String>): String {
             val category = (data["channel"] ?: data["type"] ?: data["category"]).orEmpty().lowercase()
             return when {
+                category.contains("live") || category.contains("dispatch") || category.contains("nearby") -> {
+                    NotificationChannelHelper.CHANNEL_NEARBY_LIVE_JOBS
+                }
+                category.contains("system") || category.contains("update") || category.contains("notice") -> {
+                    NotificationChannelHelper.CHANNEL_SYSTEM_UPDATES
+                }
                 category.contains("app") || category.contains("status") || category.contains("interview") -> {
                     NotificationChannelHelper.CHANNEL_APP_STATUS
                 }
@@ -93,7 +99,8 @@ class KormoKariFirebaseMessagingService : FirebaseMessagingService() {
             title = title,
             body = body,
             targetUrl = targetUrl,
-            channelId = channelId
+            channelId = channelId,
+            data = data
         )
     }
 
@@ -101,7 +108,8 @@ class KormoKariFirebaseMessagingService : FirebaseMessagingService() {
         title: String,
         body: String,
         targetUrl: String,
-        channelId: String
+        channelId: String,
+        data: Map<String, String> = emptyMap()
     ) {
         // Check Android 13+ runtime notification permission
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -151,18 +159,75 @@ class KormoKariFirebaseMessagingService : FirebaseMessagingService() {
                 NotificationCompat.BigTextStyle()
                     .bigText(body)
                     .setBigContentTitle(title)
-                    .setSummaryText(if (channelId == NotificationChannelHelper.CHANNEL_JOB_ALERTS) "Job Alert" else "Application Status")
+                    .setSummaryText(
+                        when (channelId) {
+                            NotificationChannelHelper.CHANNEL_NEARBY_LIVE_JOBS -> "Live Job Offer"
+                            NotificationChannelHelper.CHANNEL_SYSTEM_UPDATES -> "System Update"
+                            NotificationChannelHelper.CHANNEL_APP_STATUS -> "Application Status"
+                            else -> "Job Alert"
+                        }
+                    )
             )
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .setPriority(
-                if (channelId == NotificationChannelHelper.CHANNEL_JOB_ALERTS) {
+                if (channelId == NotificationChannelHelper.CHANNEL_JOB_ALERTS || channelId == NotificationChannelHelper.CHANNEL_NEARBY_LIVE_JOBS) {
                     NotificationCompat.PRIORITY_HIGH
                 } else {
                     NotificationCompat.PRIORITY_DEFAULT
                 }
             )
             .setDefaults(NotificationCompat.DEFAULT_ALL)
+
+        // Phase 4: High-priority job dispatch notification action buttons ("কাজ গ্রহণ করুন" & "বাতিল")
+        val isLiveJobOffer = channelId == NotificationChannelHelper.CHANNEL_NEARBY_LIVE_JOBS ||
+                data["type"] == "live_job_offer" ||
+                data["category"]?.lowercase()?.contains("live") == true
+
+        if (isLiveJobOffer) {
+            val offerId = data["offer_id"] ?: data["offerId"] ?: ""
+            val jobId = data["job_id"] ?: data["jobId"] ?: ""
+
+            val acceptIntent = Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("extra_action", "accept_offer")
+                putExtra("extra_offer_id", offerId)
+                putExtra(EXTRA_TARGET_URL, "${KormoKariConfig.PRODUCTION_URL}worker/jobs/$jobId?action=accept&offer_id=$offerId")
+            }
+            val acceptPendingIntent = PendingIntent.getActivity(
+                this,
+                notificationId * 10 + 1,
+                acceptIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            notificationBuilder.addAction(
+                R.drawable.kormokari_splash_icon,
+                "কাজ গ্রহণ করুন (Accept)",
+                acceptPendingIntent
+            )
+
+            val declineIntent = Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("extra_action", "decline_offer")
+                putExtra("extra_offer_id", offerId)
+                putExtra(EXTRA_TARGET_URL, "${KormoKariConfig.PRODUCTION_URL}worker/jobs/$jobId?action=decline&offer_id=$offerId")
+            }
+            val declinePendingIntent = PendingIntent.getActivity(
+                this,
+                notificationId * 10 + 2,
+                declineIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            notificationBuilder.addAction(
+                0,
+                "বাতিল (Decline)",
+                declinePendingIntent
+            )
+
+            notificationBuilder.setCategory(NotificationCompat.CATEGORY_CALL)
+        }
 
         val notificationManager = NotificationManagerCompat.from(this)
         try {

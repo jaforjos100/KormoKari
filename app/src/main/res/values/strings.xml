@@ -27,6 +27,10 @@
     <string name="fcm_channel_jobs_description">Instant notifications for new job matches and opportunities</string>
     <string name="fcm_channel_status_name">Application &amp; Account Alerts</string>
     <string name="fcm_channel_status_description">Alerts regarding application status changes, interviews, and account updates</string>
+    <string name="fcm_channel_nearby_live_jobs_name">Urgent Live Jobs (নিকটস্থ কাজ)</string>
+    <string name="fcm_channel_nearby_live_jobs_description">Real-time alerts for nearby live jobs and dispatch opportunities</string>
+    <string name="fcm_channel_system_updates_name">System Updates &amp; Notices</string>
+    <string name="fcm_channel_system_updates_description">Important system announcements, updates, and maintenance notices</string>
     <string name="notification_permission_title">Enable Job &amp; Application Alerts</string>
     <string name="notification_permission_description">Get real-time updates when employers post jobs matching your skills or when your application status updates.</string>
     <string name="action_allow_notifications">Enable Alerts</string>

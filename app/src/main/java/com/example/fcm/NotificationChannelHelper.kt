@@ -11,6 +11,8 @@ object NotificationChannelHelper {
     const val CHANNEL_JOB_ALERTS = "kormokari_job_alerts"
     const val CHANNEL_APP_STATUS = "kormokari_app_status"
     const val CHANNEL_GENERAL = "kormokari_general"
+    const val CHANNEL_NEARBY_LIVE_JOBS = "nearby_live_jobs"
+    const val CHANNEL_SYSTEM_UPDATES = "system_updates"
 
     /**
      * Initializes all notification channels on Android O (API 26) and above.
@@ -44,8 +46,31 @@ object NotificationChannelHelper {
                 setShowBadge(true)
             }
 
+            // Channel 3: High-importance channel for urgent nearby live jobs & dispatch opportunities
+            val nearbyLiveJobsChannel = NotificationChannel(
+                CHANNEL_NEARBY_LIVE_JOBS,
+                context.getString(R.string.fcm_channel_nearby_live_jobs_name),
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = context.getString(R.string.fcm_channel_nearby_live_jobs_description)
+                enableVibration(true)
+                enableLights(true)
+                setShowBadge(true)
+            }
+
+            // Channel 4: Default-importance channel for platform announcements and system updates
+            val systemUpdatesChannel = NotificationChannel(
+                CHANNEL_SYSTEM_UPDATES,
+                context.getString(R.string.fcm_channel_system_updates_name),
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = context.getString(R.string.fcm_channel_system_updates_description)
+                enableVibration(true)
+                setShowBadge(true)
+            }
+
             notificationManager.createNotificationChannels(
-                listOf(jobAlertsChannel, appStatusChannel)
+                listOf(jobAlertsChannel, appStatusChannel, nearbyLiveJobsChannel, systemUpdatesChannel)
             )
         }
     }

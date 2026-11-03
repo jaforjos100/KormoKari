@@ -13,10 +13,10 @@ class KormoKariApplication : Application() {
 
     companion object {
         private const val TAG = "KormoKariApp"
-        private const val DEFAULT_PROJECT_ID = "kormokari-app"
-        private const val DEFAULT_APPLICATION_ID = "1:604893069222:android:9d20c3548e64c20f1a2b3c"
-        private const val DEFAULT_API_KEY = "AIzaSyBkormokariFCMClientKey2026Secure"
-        private const val DEFAULT_GCM_SENDER_ID = "604893069222"
+        private const val DEFAULT_PROJECT_ID = "kormokari"
+        private const val DEFAULT_APPLICATION_ID = "1:298469777765:android:9e3219b57c0a4c9777818c"
+        private const val DEFAULT_API_KEY = "AIzaSyDFxy0YjisPi1KvouFiA6v2JTOUhQtrU94"
+        private const val DEFAULT_GCM_SENDER_ID = "298469777765"
 
         /**
          * Ensures FirebaseApp is safely initialized in the current process.

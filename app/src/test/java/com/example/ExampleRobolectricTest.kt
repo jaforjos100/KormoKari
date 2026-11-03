@@ -1170,5 +1170,64 @@ class ExampleRobolectricTest {
         activity.appUpdateManager.notifyUpdateDownloaded()
         activity.appUpdateManager.onDestroy()
     }
+
+    @Test
+    fun `verify Phase 1 and 2 bridge methods in KormoKariPermissionsBridge and KormoKariAndroidBridge`() {
+        val activity = org.robolectric.Robolectric.buildActivity(androidx.activity.ComponentActivity::class.java).setup().get()
+        val webView = android.webkit.WebView(activity)
+        val permissionsBridge = com.example.permission.KormoKariPermissionsBridge(activity) { webView }
+        val androidBridge = com.example.auth.KormoKariAndroidBridge(activity, webView)
+
+        assertTrue(permissionsBridge.isNativeBridgeAvailable())
+        assertTrue(androidBridge.isNativeBridgeAvailable())
+
+        val deviceId = permissionsBridge.getDeviceInstallationId()
+        assertNotNull(deviceId)
+        assertTrue(deviceId.isNotEmpty())
+        assertEquals(deviceId, permissionsBridge.getDeviceInstallationId()) // Persistent UUID
+
+        // Invalid challenge rejection
+        val invalidRes = org.json.JSONObject(permissionsBridge.onPushRegistrationChallenge("short_invalid_challenge"))
+        assertFalse(invalidRes.getBoolean("success"))
+
+        // Valid 64-char challenge
+        val validChallenge = "a".repeat(64)
+        val validRes = org.json.JSONObject(permissionsBridge.onPushRegistrationChallenge(validChallenge))
+        assertTrue(validRes.getBoolean("success"))
+
+        val unlinkRes = org.json.JSONObject(permissionsBridge.onPushUnlinkChallenge("test_unlink_challenge"))
+        assertTrue(unlinkRes.getBoolean("success"))
+    }
+
+    @Test
+    fun `verify Phase 3 and 4 Notification Channel and Routing synchronization`() {
+        val activity = org.robolectric.Robolectric.buildActivity(androidx.activity.ComponentActivity::class.java).setup().get()
+        com.example.fcm.NotificationChannelHelper.createNotificationChannels(activity)
+
+        assertEquals("nearby_live_jobs", com.example.fcm.NotificationChannelHelper.CHANNEL_NEARBY_LIVE_JOBS)
+        assertEquals("system_updates", com.example.fcm.NotificationChannelHelper.CHANNEL_SYSTEM_UPDATES)
+
+        // Route live jobs
+        assertEquals(
+            com.example.fcm.NotificationChannelHelper.CHANNEL_NEARBY_LIVE_JOBS,
+            com.example.fcm.KormoKariFirebaseMessagingService.resolveChannelId(mapOf("channel" to "live_dispatch"))
+        )
+        assertEquals(
+            com.example.fcm.NotificationChannelHelper.CHANNEL_NEARBY_LIVE_JOBS,
+            com.example.fcm.KormoKariFirebaseMessagingService.resolveChannelId(mapOf("type" to "nearby_jobs"))
+        )
+
+        // Route system updates
+        assertEquals(
+            com.example.fcm.NotificationChannelHelper.CHANNEL_SYSTEM_UPDATES,
+            com.example.fcm.KormoKariFirebaseMessagingService.resolveChannelId(mapOf("category" to "system_notice"))
+        )
+
+        // Route application status
+        assertEquals(
+            com.example.fcm.NotificationChannelHelper.CHANNEL_APP_STATUS,
+            com.example.fcm.KormoKariFirebaseMessagingService.resolveChannelId(mapOf("type" to "interview_scheduled"))
+        )
+    }
 }
 

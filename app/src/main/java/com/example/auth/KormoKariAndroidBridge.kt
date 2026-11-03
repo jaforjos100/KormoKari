@@ -102,4 +102,7 @@ class KormoKariAndroidBridge(
             activity.appUpdateManager.completeUpdate()
         }
     }
+
+    @JavascriptInterface
+    fun isNativeBridgeAvailable(): Boolean = true
 }

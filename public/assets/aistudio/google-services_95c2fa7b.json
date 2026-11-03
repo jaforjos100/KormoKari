@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "298469777765",
+    "project_id": "kormokari",
+    "storage_bucket": "kormokari.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:298469777765:android:9e3219b57c0a4c9777818c",
+        "android_client_info": {
+          "package_name": "com.kormokari.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDFxy0YjisPi1KvouFiA6v2JTOUhQtrU94"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -392,6 +392,7 @@ fun KormoKariPwaWebView(
                                 activity = activity,
                                 webViewProvider = { webViewInstance ?: this }
                             )
+                            addJavascriptInterface(permissionsBridge, "KormoKariAndroidPermissions")
                             addJavascriptInterface(permissionsBridge, "KormoKariAndroidPermissionsBridge")
                             addJavascriptInterface(permissionsBridge, "AndroidPermissionsBridge")
 

@@ -18,6 +18,15 @@ import androidx.core.content.ContextCompat
 import com.example.location.WorkerLocationService
 import com.example.util.BatteryOptimizationHelper
 import org.json.JSONObject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 /**
  * Native JavaScript Interface Bridge exposing canonical permission and dispatch controls
@@ -153,6 +162,108 @@ class KormoKariPermissionsBridge(
         json.put("BATTERY_OPTIMIZATION", if (isBatteryExempt) STATUS_GRANTED else STATUS_DENIED)
         json.put("REQUEST_IGNORE_BATTERY_OPTIMIZATIONS", if (isBatteryExempt) STATUS_GRANTED else STATUS_DENIED)
         return json.toString()
+    }
+
+    @JavascriptInterface
+    fun getDeviceInstallationId(): String {
+        val prefs = activity.getSharedPreferences("kormokari_device_prefs", Context.MODE_PRIVATE)
+        var deviceId = prefs.getString("device_installation_id", null)
+        if (deviceId.isNullOrBlank()) {
+            deviceId = UUID.randomUUID().toString()
+            prefs.edit().putString("device_installation_id", deviceId).apply()
+        }
+        return deviceId
+    }
+
+    @JavascriptInterface
+    fun isNativeBridgeAvailable(): Boolean = true
+
+    @JavascriptInterface
+    fun onPushRegistrationChallenge(challenge: String, authUserId: String? = null): String {
+        if (challenge.length != 64) {
+            return JSONObject().put("success", false).put("message", "Invalid challenge length").toString()
+        }
+
+        val context = activity.applicationContext
+        val fcmTokenManager = com.example.fcm.FcmTokenManager(context)
+        val deviceId = getDeviceInstallationId()
+        val appVersion = com.example.config.KormoKariConfig.VERSION_NAME
+        val deviceName = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
+        val notifPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) "granted" else "denied"
+        } else "granted"
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                var token = fcmTokenManager.getCachedToken()
+                if (token.isNullOrBlank()) {
+                    val fetchResult = fcmTokenManager.fetchFreshToken()
+                    token = fetchResult.getOrNull()
+                }
+
+                if (!token.isNullOrBlank()) {
+                    val payload = JSONObject().apply {
+                        put("challenge", challenge)
+                        put("token", token)
+                        put("platform", "android")
+                        put("device_id", deviceId)
+                        put("device_name", deviceName)
+                        put("app_version", appVersion)
+                        put("notification_permission", notifPermission)
+                    }
+
+                    val url = "${com.example.config.KormoKariConfig.PRODUCTION_URL}api/v1/push-tokens/exchange-challenge"
+                    val client = OkHttpClient.Builder()
+                        .connectTimeout(15, TimeUnit.SECONDS)
+                        .readTimeout(15, TimeUnit.SECONDS)
+                        .build()
+
+                    val body = payload.toString().toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
+
+                    val request = Request.Builder()
+                        .url(url)
+                        .post(body)
+                        .header("Accept", "application/json")
+                        .header("Content-Type", "application/json")
+                        .build()
+
+                    val response = client.newCall(request).execute()
+                    android.util.Log.i("KormoKariPush", "Challenge exchange response code: ${response.code}")
+                    response.close()
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("KormoKariPush", "Failed exchanging push registration challenge: ${e.message}")
+            }
+        }
+
+        return JSONObject().put("success", true).toString()
+    }
+
+    @JavascriptInterface
+    fun onPushUnlinkChallenge(challenge: String): String {
+        val context = activity.applicationContext
+        val deviceId = getDeviceInstallationId()
+        val token = com.example.fcm.FcmTokenManager(context).getCachedToken()
+
+        // Stop background location tracking immediately on logout
+        WorkerLocationService.stop(context)
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val payload = JSONObject().apply {
+                    put("challenge", challenge)
+                    put("device_id", deviceId)
+                    if (!token.isNullOrBlank()) put("token", token)
+                }
+
+                val url = "${com.example.config.KormoKariConfig.PRODUCTION_URL}api/v1/push-tokens/exchange-unlink-challenge"
+                val client = OkHttpClient()
+                val body = payload.toString().toRequestBody("application/json".toMediaTypeOrNull())
+                val request = Request.Builder().url(url).post(body).header("Accept", "application/json").build()
+                client.newCall(request).execute().close()
+            } catch (_: Exception) {}
+        }
+        return JSONObject().put("success", true).toString()
     }
 
     @JavascriptInterface

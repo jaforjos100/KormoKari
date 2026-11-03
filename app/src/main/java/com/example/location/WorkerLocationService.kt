@@ -17,6 +17,15 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.example.R
 import org.json.JSONObject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
  * Native Android Foreground Service for Worker Live GPS Dispatch telemetry.
@@ -25,6 +34,7 @@ import org.json.JSONObject
 class WorkerLocationService : Service(), LocationListener {
 
     private var locationManager: LocationManager? = null
+    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -74,6 +84,35 @@ class WorkerLocationService : Service(), LocationListener {
 
     override fun onLocationChanged(location: Location) {
         updateLocation(location)
+
+        val token = currentAuthToken
+        if (token.isNotBlank()) {
+            serviceScope.launch {
+                try {
+                    val payload = JSONObject().apply {
+                        put("latitude", location.latitude)
+                        put("longitude", location.longitude)
+                        put("accuracy", location.accuracy.toDouble())
+                        put("is_stationary", false)
+                    }
+
+                    val client = OkHttpClient()
+                    val url = "${com.example.config.KormoKariConfig.PRODUCTION_URL}api/v1/worker/dispatch/location"
+                    val body = payload.toString().toRequestBody("application/json".toMediaTypeOrNull())
+                    val request = Request.Builder()
+                        .url(url)
+                        .post(body)
+                        .header("Authorization", "Bearer $token")
+                        .header("Accept", "application/json")
+                        .header("Content-Type", "application/json")
+                        .build()
+
+                    client.newCall(request).execute().close()
+                } catch (e: Exception) {
+                    android.util.Log.w("WorkerLocationService", "Telemetry upload failed: ${e.message}")
+                }
+            }
+        }
     }
 
     override fun onProviderEnabled(provider: String) {}
@@ -82,6 +121,7 @@ class WorkerLocationService : Service(), LocationListener {
 
     override fun onDestroy() {
         super.onDestroy()
+        serviceScope.cancel()
         isTracking = false
         try {
             locationManager?.removeUpdates(this)
