@@ -166,6 +166,11 @@ class KormoKariAuthBridge(
 
     @JavascriptInterface
     fun requestGoogleSignIn(nonce: String?) {
+        launchCustomTabInternal(KormoKariConfig.GOOGLE_REDIRECT_URL)
+    }
+
+    @JavascriptInterface
+    fun requestGoogleCredentialManager(nonce: String?) {
         val currentUrl = getCurrentWebViewUrl()
         if (!isOriginTrusted(currentUrl)) {
             Log.e(TAG, "Blocked Google Sign-In request from untrusted origin: $currentUrl")
@@ -181,6 +186,7 @@ class KormoKariAuthBridge(
         val effectiveClientId = defaultServerClientId
         if (effectiveClientId.isBlank()) {
             Log.e(TAG, "Google OAuth Server Client ID is not configured.")
+            launchCustomTabInternal(KormoKariConfig.GOOGLE_REDIRECT_URL)
             return
         }
 
@@ -235,16 +241,11 @@ class KormoKariAuthBridge(
                     }
                 } else {
                     Log.w(TAG, "Unsupported credential type from provider, launching Custom Tab fallback")
-                    launchCustomTabInternal(KormoKariConfig.GOOGLE_AUTH_URL)
+                    launchCustomTabInternal(KormoKariConfig.GOOGLE_REDIRECT_URL)
                 }
-            } catch (e: GetCredentialCancellationException) {
-                Log.i(TAG, "Google Sign-In dismissed by user")
-            } catch (e: NoCredentialException) {
-                Log.w(TAG, "No Google accounts available on device, launching Custom Tab fallback")
-                launchCustomTabInternal(KormoKariConfig.GOOGLE_AUTH_URL)
             } catch (e: Exception) {
                 Log.e(TAG, "Credential Manager error, falling back to Custom Tab: ${e.message}")
-                launchCustomTabInternal(KormoKariConfig.GOOGLE_AUTH_URL)
+                launchCustomTabInternal(KormoKariConfig.GOOGLE_REDIRECT_URL)
             }
         }
     }

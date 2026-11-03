@@ -96,28 +96,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- TWA Deep Linking intent filter for kormokari.com -->
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data
-                    android:scheme="https"
-                    android:host="kormokari.com" />
-            </intent-filter>
-
-            <!-- OAuth Callback Deep Linking (Auto-Dismiss Custom Tab & Return to WebView) -->
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="kormokari.com" android:pathPrefix="/auth/google/callback" />
-                <data android:scheme="https" android:host="kormokari.com" android:pathPrefix="/auth/facebook/callback" />
-                <data android:scheme="https" android:host="kormokari.com" android:pathPrefix="/auth/handoff" />
-                <data android:scheme="https" android:host="www.kormokari.com" android:pathPrefix="/auth/google/callback" />
-                <data android:scheme="https" android:host="www.kormokari.com" android:pathPrefix="/auth/facebook/callback" />
-                <data android:scheme="https" android:host="www.kormokari.com" android:pathPrefix="/auth/handoff" />
-            </intent-filter>
 
             <!-- In-App OAuth custom scheme callback filter for social login return -->
             <intent-filter>

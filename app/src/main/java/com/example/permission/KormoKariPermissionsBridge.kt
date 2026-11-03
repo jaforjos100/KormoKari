@@ -29,6 +29,27 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 /**
+ * Helper to defer WebView GeolocationCallbacks until runtime permissions are granted by user,
+ * preventing Chromium cr_LocationProvider SecurityException.
+ */
+object GeolocationPermissionHelper {
+    var pendingOrigin: String? = null
+    var pendingCallback: android.webkit.GeolocationPermissions.Callback? = null
+
+    fun onPermissionResult(isGranted: Boolean) {
+        val cb = pendingCallback
+        val orig = pendingOrigin
+        pendingCallback = null
+        pendingOrigin = null
+        if (cb != null && orig != null) {
+            Handler(Looper.getMainLooper()).post {
+                cb.invoke(orig, isGranted, false)
+            }
+        }
+    }
+}
+
+/**
  * Native JavaScript Interface Bridge exposing canonical permission and dispatch controls
  * to kormokari-permission-engine.js and the KormoKari PWA.
  */
@@ -62,6 +83,10 @@ class KormoKariPermissionsBridge(
             val callbackId = pendingCallbacks.remove(requestCode)
             val isGranted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
             val status = if (isGranted) STATUS_GRANTED else STATUS_DENIED
+
+            if (requestCode == REQ_CODE_LOCATION_FOREGROUND || requestCode == REQ_CODE_LOCATION_BACKGROUND) {
+                GeolocationPermissionHelper.onPermissionResult(isGranted)
+            }
 
             if (!callbackId.isNullOrBlank()) {
                 Handler(Looper.getMainLooper()).post {

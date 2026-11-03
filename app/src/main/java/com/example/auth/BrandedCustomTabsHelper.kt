@@ -54,13 +54,16 @@ object BrandedCustomTabsHelper {
                 customTabsIntent.intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
 
-            customTabsIntent.launchUrl(context, url)
-            Log.i(TAG, "Launched branded Custom Tab for in-app authentication: $url")
+            val finalUri = normalizeOAuthUrl(url)
+
+            customTabsIntent.launchUrl(context, finalUri)
+            Log.i(TAG, "Launched branded Custom Tab for in-app authentication: $finalUri")
             true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to launch Custom Tab, falling back to browser intent", e)
             try {
-                val fallbackIntent = Intent(Intent.ACTION_VIEW, url).apply {
+                val finalUri = normalizeOAuthUrl(url)
+                val fallbackIntent = Intent(Intent.ACTION_VIEW, finalUri).apply {
                     if (context !is Activity) {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
@@ -75,13 +78,43 @@ object BrandedCustomTabsHelper {
     }
 
     /**
+     * Normalizes social auth URLs to the required backend redirect endpoint with ?source=app.
+     * Prevents calling non-existent bare paths like /auth/google or /auth/facebook.
+     */
+    fun normalizeOAuthUrl(url: Uri): Uri {
+        val host = url.host?.lowercase() ?: ""
+        val path = url.path?.lowercase() ?: ""
+        val isKormoKari = host == "kormokari.com" || host == "www.kormokari.com" || host.isEmpty()
+        if (!isKormoKari) return url
+
+        val provider = when {
+            path.contains("facebook") || url.toString().lowercase().contains("facebook") -> "facebook"
+            path.contains("google") || url.toString().lowercase().contains("google") -> "google"
+            else -> null
+        } ?: return url
+
+        val builder = Uri.parse("https://kormokari.com/auth/$provider/redirect").buildUpon()
+        for (paramName in url.queryParameterNames) {
+            if (paramName != "source") {
+                builder.appendQueryParameter(paramName, url.getQueryParameter(paramName))
+            }
+        }
+        builder.appendQueryParameter("source", "app")
+        return builder.build()
+    }
+
+    /**
      * Checks if the URL is an external authentication / OAuth URL that requires
      * in-app branded Custom Tab treatment rather than embedded WebView or generic browser.
      */
     fun isSocialAuthUrl(urlString: String?): Boolean {
         if (urlString.isNullOrBlank()) return false
         if (isAuthCallbackUrl(urlString)) return false
-        return isFacebookAuthUrl(urlString) || isGoogleAuthUrl(urlString)
+        val lower = urlString.lowercase()
+        return isFacebookAuthUrl(urlString) ||
+                isGoogleAuthUrl(urlString) ||
+                (lower.contains("google") && (lower.contains("auth") || lower.contains("login") || lower.contains("signin") || lower.contains("redirect") || lower.contains("oauth"))) ||
+                (lower.contains("facebook") && (lower.contains("auth") || lower.contains("login") || lower.contains("signin") || lower.contains("redirect") || lower.contains("oauth")))
     }
 
     /**
@@ -108,7 +141,15 @@ object BrandedCustomTabsHelper {
                 lower.contains("fb.com") ||
                 lower.contains("/auth/facebook") ||
                 lower.contains("/login/facebook") ||
-                lower.contains("/oauth/facebook")
+                lower.contains("/oauth/facebook") ||
+                lower.contains("/signin/facebook") ||
+                lower.contains("/sign-in/facebook") ||
+                lower.contains("/signup/facebook") ||
+                lower.contains("/sign-up/facebook") ||
+                lower.contains("/facebook/redirect") ||
+                lower.contains("/redirect/facebook") ||
+                lower.contains("provider=facebook") ||
+                lower.contains("driver=facebook")
     }
 
     /**
@@ -120,6 +161,14 @@ object BrandedCustomTabsHelper {
         return lower.contains("accounts.google.com") ||
                 lower.contains("/auth/google") ||
                 lower.contains("/login/google") ||
-                lower.contains("/oauth/google")
+                lower.contains("/oauth/google") ||
+                lower.contains("/signin/google") ||
+                lower.contains("/sign-in/google") ||
+                lower.contains("/signup/google") ||
+                lower.contains("/sign-up/google") ||
+                lower.contains("/google/redirect") ||
+                lower.contains("/redirect/google") ||
+                lower.contains("provider=google") ||
+                lower.contains("driver=google")
     }
 }

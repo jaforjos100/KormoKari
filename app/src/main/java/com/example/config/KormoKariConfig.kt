@@ -36,7 +36,7 @@ object KormoKariConfig {
      * Suitable ONLY for local emulator and development testing.
      */
     const val DEBUG_CERTIFICATE_SHA256 =
-        "0A:91:A8:C0:9D:39:81:B6:3D:56:CF:92:B7:8A:BD:F1:59:69:3A:27:02:60:9F:44:8E:A9:3A:DD:A8:F0:F3:5F"
+        "AF:AE:A1:ED:6F:F6:5E:3D:C9:38:B4:CC:43:3D:51:24:76:7F:62:3D:5C:88:B2:A5:36:15:BA:AE:99:5B:7F:68"
 
     /**
      * Status of the production release signing identity.
@@ -97,10 +97,10 @@ object KormoKariConfig {
      * Social Authentication Endpoints on the KormoKari Laravel backend.
      * Reused for Google fallback and Facebook OAuth Custom Tab flows.
      */
-    const val GOOGLE_AUTH_URL = "https://kormokari.com/auth/google"
-    const val FACEBOOK_AUTH_URL = "https://kormokari.com/auth/facebook"
-    const val GOOGLE_REDIRECT_URL = "https://kormokari.com/auth/google/redirect"
-    const val FACEBOOK_REDIRECT_URL = "https://kormokari.com/auth/facebook/redirect"
+    const val GOOGLE_AUTH_URL = "https://kormokari.com/auth/google/redirect?source=app"
+    const val FACEBOOK_AUTH_URL = "https://kormokari.com/auth/facebook/redirect?source=app"
+    const val GOOGLE_REDIRECT_URL = "https://kormokari.com/auth/google/redirect?source=app"
+    const val FACEBOOK_REDIRECT_URL = "https://kormokari.com/auth/facebook/redirect?source=app"
     const val GOOGLE_CALLBACK_PATH = "/auth/google/callback"
     const val FACEBOOK_CALLBACK_PATH = "/auth/facebook/callback"
     const val OAUTH_CUSTOM_SCHEME = "kormokari"

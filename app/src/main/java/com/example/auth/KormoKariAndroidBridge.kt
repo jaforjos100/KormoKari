@@ -28,24 +28,12 @@ class KormoKariAndroidBridge(
     fun requestGoogleSignIn(nonce: String?) {
         activity.runOnUiThread {
             try {
-                val googleAuthUrl = "https://kormokari.com/auth/google/redirect"
+                val googleAuthUrl = "https://kormokari.com/auth/google/redirect?source=app"
                 val uri = Uri.parse(googleAuthUrl)
-
-                val customTabsIntent = CustomTabsIntent.Builder()
-                    .setShowTitle(true)
-                    .build()
-                customTabsIntent.launchUrl(activity, uri)
-                Log.d(TAG, "Successfully launched Chrome Custom Tab for Google OAuth")
+                val launched = BrandedCustomTabsHelper.launchBrandedCustomTab(activity, uri)
+                Log.d(TAG, "Launched Chrome Custom Tab for Google OAuth: $googleAuthUrl, success: $launched")
             } catch (e: Exception) {
-                Log.w(TAG, "CustomTabs launch failed, falling back to system browser: ${e.message}")
-                try {
-                    val fallbackIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://kormokari.com/auth/google/redirect")).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    activity.startActivity(fallbackIntent)
-                } catch (ex: Exception) {
-                    Log.e(TAG, "Fatal: unable to launch Google OAuth intent: ${ex.message}")
-                }
+                Log.e(TAG, "Fatal: unable to launch Google OAuth intent: ${e.message}")
             }
         }
     }
@@ -62,26 +50,44 @@ class KormoKariAndroidBridge(
     fun requestFacebookSignIn(nonce: String?) {
         activity.runOnUiThread {
             try {
-                val facebookAuthUrl = "https://kormokari.com/auth/facebook/redirect"
+                val facebookAuthUrl = "https://kormokari.com/auth/facebook/redirect?source=app"
                 val uri = Uri.parse(facebookAuthUrl)
-
-                val customTabsIntent = CustomTabsIntent.Builder()
-                    .setShowTitle(true)
-                    .build()
-                customTabsIntent.launchUrl(activity, uri)
-                Log.d(TAG, "Successfully launched Chrome Custom Tab for Facebook OAuth")
+                val launched = BrandedCustomTabsHelper.launchBrandedCustomTab(activity, uri)
+                Log.d(TAG, "Launched Chrome Custom Tab for Facebook OAuth: $facebookAuthUrl, success: $launched")
             } catch (e: Exception) {
-                Log.w(TAG, "CustomTabs launch failed, falling back to system browser: ${e.message}")
-                try {
-                    val fallbackIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://kormokari.com/auth/facebook/redirect")).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    activity.startActivity(fallbackIntent)
-                } catch (ex: Exception) {
-                    Log.e(TAG, "Fatal: unable to launch Facebook OAuth intent: ${ex.message}")
-                }
+                Log.e(TAG, "Fatal: unable to launch Facebook OAuth intent: ${e.message}")
             }
         }
+    }
+
+    @JavascriptInterface
+    fun openOAuthCustomTab(provider: String?) {
+        val prov = provider?.trim()?.lowercase() ?: "google"
+        if (prov.contains("facebook")) {
+            requestFacebookSignIn()
+        } else {
+            requestGoogleSignIn()
+        }
+    }
+
+    @JavascriptInterface
+    fun signInWithGoogle() {
+        requestGoogleSignIn()
+    }
+
+    @JavascriptInterface
+    fun signInWithFacebook() {
+        requestFacebookSignIn()
+    }
+
+    @JavascriptInterface
+    fun loginWithGoogle() {
+        requestGoogleSignIn()
+    }
+
+    @JavascriptInterface
+    fun loginWithFacebook() {
+        requestFacebookSignIn()
     }
 
     @JavascriptInterface

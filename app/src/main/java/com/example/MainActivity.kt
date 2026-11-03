@@ -6,6 +6,7 @@ import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.View
@@ -81,17 +82,29 @@ class MainActivity : ComponentActivity() {
     private lateinit var offlineJobRepository: com.example.data.local.OfflineJobRepository
     lateinit var appUpdateManager: com.example.update.KormoKariAppUpdateManager
 
+    private val handoffTokenPattern = Regex("^kkh_[a-f0-9]{64}$", RegexOption.IGNORE_CASE)
+    private var pendingHandoffToken: String? = null
+    private var lastConsumedHandoffToken: String? = null
+    private var handoffAttempts = 0
+
     var pendingAuthCallbackUrl: String? = null
 
     var activeWebView: android.webkit.WebView? = null
         set(value) {
             field = value
-            if (value != null && !pendingAuthCallbackUrl.isNullOrBlank()) {
-                val callbackUrl = pendingAuthCallbackUrl!!
-                pendingAuthCallbackUrl = null
-                value.post {
-                    android.webkit.CookieManager.getInstance().flush()
-                    value.loadUrl(callbackUrl)
+            if (value != null) {
+                if (pendingHandoffToken != null && isTrustedKormoKariUrl(value.url)) {
+                    val token = pendingHandoffToken!!
+                    value.post {
+                        startHandoffExchange(value, token)
+                    }
+                } else if (!pendingAuthCallbackUrl.isNullOrBlank()) {
+                    val callbackUrl = pendingAuthCallbackUrl!!
+                    pendingAuthCallbackUrl = null
+                    value.post {
+                        android.webkit.CookieManager.getInstance().flush()
+                        value.loadUrl(callbackUrl)
+                    }
                 }
             }
         }
@@ -146,7 +159,10 @@ class MainActivity : ComponentActivity() {
         val splashScreen = installSplashScreen()
 
         super.onCreate(savedInstanceState)
-        handleOAuthCallback(intent)
+        val deepLinkHandled = handleAuthDeepLink(intent)
+        if (!deepLinkHandled) {
+            handleOAuthCallback(intent)
+        }
         // Keep Android navigation bar and status bar styled to match Android theme
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(
@@ -427,40 +443,204 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onNewIntent(intent: Intent) {
+    public override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        val handled = handleOAuthCallback(intent)
-        if (!handled) {
-            val targetUrl = extractTargetUrl(intent)
-            if (!targetUrl.isNullOrBlank()) {
+        processIncomingAuthIntent(intent)
+    }
+
+    fun processIncomingAuthIntent(intent: Intent): Boolean {
+        val deepLinkHandled = handleAuthDeepLink(intent)
+        if (!deepLinkHandled) {
+            val handled = handleOAuthCallback(intent)
+            if (!handled) {
+                val targetUrl = extractTargetUrl(intent)
+                if (!targetUrl.isNullOrBlank()) {
+                    android.webkit.CookieManager.getInstance().flush()
+                    startupViewModel.attemptLaunch(this, targetUrl, forceRelaunch = true)
+                    return true
+                }
+                return false
+            }
+            return true
+        }
+        return true
+    }
+
+    private fun handleAuthDeepLink(intent: Intent?): Boolean {
+        val uri = intent?.data ?: return false
+        val scheme = uri.scheme?.lowercase() ?: ""
+        val host = uri.host?.lowercase() ?: ""
+        if (scheme != "kormokari" || host != "auth-callback") return false
+
+        val rawToken = uri.getQueryParameter("token")
+            ?: uri.getQueryParameter("handoff_token")
+            ?: uri.getQueryParameter("code")
+        val cleanToken = rawToken?.trim()
+
+        val normalizedToken = when {
+            cleanToken == null -> null
+            cleanToken.startsWith("kkh_", ignoreCase = true) -> cleanToken.lowercase()
+            cleanToken.length == 64 && cleanToken.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' } -> "kkh_${cleanToken.lowercase()}"
+            else -> cleanToken.lowercase()
+        }
+
+        if (normalizedToken.isNullOrBlank() || !handoffTokenPattern.matches(normalizedToken)) {
+            val error = uri.getQueryParameter("error") ?: uri.getQueryParameter("error_description")
+            if (!error.isNullOrBlank()) {
+                val webView = activeWebView
+                if (webView != null) {
+                    webView.post { webView.loadUrl("https://kormokari.com/login") }
+                } else {
+                    startupViewModel.attemptLaunch(this, "https://kormokari.com/login", forceRelaunch = true)
+                }
+            } else {
+                loadLoginPage()
+            }
+            return true
+        }
+
+        if (normalizedToken == lastConsumedHandoffToken || normalizedToken == pendingHandoffToken) {
+            return true // duplicate delivery, do nothing
+        }
+
+        pendingHandoffToken = normalizedToken
+        handoffAttempts = 0
+        android.webkit.CookieManager.getInstance().flush()
+
+        val webView = activeWebView
+        if (webView != null && isTrustedKormoKariUrl(webView.url)) {
+            webView.post { startHandoffExchange(webView, normalizedToken) }
+        } else if (webView != null) {
+            webView.post { webView.loadUrl("https://kormokari.com/login") }
+            // onPageFinished will retry the exchange once page completes
+        }
+        // Cold start: keep the token pending. The normal app launch creates the WebView;
+        // the WebView-ready hook (onWebViewPageFinished) starts the exchange.
+        return true
+    }
+
+    private fun isTrustedKormoKariUrl(url: String?): Boolean {
+        if (url.isNullOrBlank()) return false
+        return try {
+            val u = Uri.parse(url)
+            val host = u.host?.lowercase()
+            u.scheme == "https" && (host == "kormokari.com" || host == "www.kormokari.com")
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun loadLoginPage() {
+        val webView = activeWebView
+        if (webView != null) {
+            webView.post { webView.loadUrl("https://kormokari.com/login?handoff_error=1") }
+        } else {
+            startupViewModel.attemptLaunch(this, "https://kormokari.com/login?handoff_error=1", forceRelaunch = true)
+        }
+    }
+
+    private fun startHandoffExchange(webView: android.webkit.WebView, token: String) {
+        lastConsumedHandoffToken = token
+        handoffAttempts++
+        if (handoffAttempts > 3) {
+            pendingHandoffToken = null
+            webView.loadUrl("https://kormokari.com/login")
+            return
+        }
+
+        webView.evaluateJavascript(buildHandoffExchangeJs(token)) { result ->
+            val status = result?.trim()?.removeSurrounding("\"")
+            if (status == "need_trusted_page") {
+                webView.loadUrl("https://kormokari.com/login") // retried from onPageFinished
+            } else {
+                pendingHandoffToken = null
                 android.webkit.CookieManager.getInstance().flush()
-                startupViewModel.attemptLaunch(this, targetUrl, forceRelaunch = true)
             }
         }
     }
 
+    private fun buildHandoffExchangeJs(token: String): String = """
+        (function() {
+            var token = '$token';
+            var meta = document.querySelector('meta[name="csrf-token"]');
+            var csrfToken = meta ? (meta.content || meta.getAttribute('content') || '') : '';
+            if (!csrfToken) {
+                var input = document.querySelector('input[name="_token"]');
+                if (input && input.value) {
+                    csrfToken = input.value;
+                }
+            }
+            if (!csrfToken) {
+                var cookieMatch = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
+                if (cookieMatch) {
+                    csrfToken = decodeURIComponent(cookieMatch[1]);
+                }
+            }
+            var reqHeaders = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            };
+            if (csrfToken) {
+                reqHeaders['X-CSRF-TOKEN'] = csrfToken;
+                reqHeaders['X-XSRF-TOKEN'] = csrfToken;
+            }
+            var payload = { token: token };
+            fetch('https://kormokari.com/auth/handoff', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: reqHeaders,
+                body: JSON.stringify(payload)
+            }).then(function (r) {
+                return r.json().catch(function () { return { success: false }; });
+            }).then(function (d) {
+                if (d && d.success && typeof d.redirect_url === 'string') {
+                    var target = d.redirect_url.trim();
+                    if (target.indexOf('https://kormokari.com') === 0 || target.indexOf('https://www.kormokari.com') === 0) {
+                        window.location.replace(target);
+                    } else if (target.charAt(0) === '/' && target.charAt(1) !== '/') {
+                        window.location.replace(target);
+                    } else {
+                        window.location.replace('https://kormokari.com/login?handoff_error=1');
+                    }
+                } else {
+                    window.location.replace('https://kormokari.com/login?handoff_error=1');
+                }
+            }).catch(function () {
+                window.location.replace('https://kormokari.com/login?handoff_error=1');
+            });
+            return 'posted';
+        })();
+    """.trimIndent()
+
+    fun onWebViewPageFinished(url: String?) {
+        val token = pendingHandoffToken ?: return
+        val webView = activeWebView ?: return
+        if (!isTrustedKormoKariUrl(url)) return
+        webView.post { startHandoffExchange(webView, token) }
+    }
+
     private fun handleOAuthCallback(intent: Intent?): Boolean {
         val uri = intent?.data ?: return false
-        val url = uri.toString()
-        val host = uri.host?.lowercase()
+        val host = uri.host?.lowercase() ?: ""
         val path = uri.path ?: ""
+
         if ((host == "kormokari.com" || host == "www.kormokari.com") && (
             path.startsWith("/auth/google/callback") ||
-            path.startsWith("/auth/facebook/callback") ||
-            path.startsWith("/auth/handoff")
+            path.startsWith("/auth/facebook/callback")
         )) {
-            android.webkit.CookieManager.getInstance().flush()
-            val webView = activeWebViewInstance
-            if (webView != null) {
-                webView.post {
-                    webView.loadUrl(url)
+            val token = uri.getQueryParameter("token") ?: uri.getQueryParameter("handoff_token")
+            if (!token.isNullOrBlank()) {
+                val webView = activeWebViewInstance
+                if (webView != null) {
+                    startHandoffExchange(webView, token)
+                } else {
+                    pendingHandoffToken = token
                 }
-            } else {
-                pendingAuthCallbackUrl = url
-                startupViewModel.attemptLaunch(this, url, forceRelaunch = true)
+                return true
             }
-            return true
+            return false
         }
         return false
     }
@@ -469,11 +649,15 @@ class MainActivity : ComponentActivity() {
         if (intent == null) return null
         val dataString = intent.dataString
         if (!dataString.isNullOrBlank()) {
+            if (dataString.startsWith("kormokari://")) {
+                return null
+            }
             return dataString
         }
         return intent.getStringExtra(KormoKariFirebaseMessagingService.EXTRA_TARGET_URL)
     }
 
+    @Deprecated("Deprecated in Java")
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<String>,

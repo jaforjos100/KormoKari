@@ -323,7 +323,31 @@ fun KormoKariPwaWebView(
                         }
                     }
 
-                    val webView = WebView(ctx).apply {
+                    val webView = object : WebView(ctx) {
+                        private var currentActionMode: android.view.ActionMode? = null
+
+                        override fun startActionMode(callback: android.view.ActionMode.Callback?, type: Int): android.view.ActionMode? {
+                            return try {
+                                currentActionMode?.finish()
+                                val mode = super.startActionMode(callback, type)
+                                currentActionMode = mode
+                                mode
+                            } catch (_: Exception) {
+                                null
+                            }
+                        }
+
+                        override fun startActionMode(callback: android.view.ActionMode.Callback?): android.view.ActionMode? {
+                            return try {
+                                currentActionMode?.finish()
+                                val mode = super.startActionMode(callback)
+                                currentActionMode = mode
+                                mode
+                            } catch (_: Exception) {
+                                null
+                            }
+                        }
+                    }.apply {
                         layoutParams = ViewGroup.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
@@ -377,14 +401,22 @@ fun KormoKariPwaWebView(
                             addJavascriptInterface(authBridge, KormoKariAuthBridge.JAVASCRIPT_INTERFACE_NAME)
                             addJavascriptInterface(authBridge, KormoKariAuthBridge.JAVASCRIPT_INTERFACE_ALIAS)
 
-                            if (activity is androidx.activity.ComponentActivity) {
-                                val androidBridge = com.example.auth.KormoKariAndroidBridge(
+                            val androidBridge = if (activity is androidx.activity.ComponentActivity) {
+                                com.example.auth.KormoKariAndroidBridge(
                                     activity = activity,
                                     webView = webViewInstance ?: this
                                 )
-                                addJavascriptInterface(androidBridge, "KormoKariAndroid")
                             } else {
-                                addJavascriptInterface(authBridge, KormoKariAuthBridge.JAVASCRIPT_INTERFACE_KORMOKARI_ANDROID)
+                                null
+                            }
+
+                            if (androidBridge != null) {
+                                addJavascriptInterface(androidBridge, "KormoKariAndroid")
+                                addJavascriptInterface(androidBridge, "KormoKariAndroidBridge")
+                                addJavascriptInterface(androidBridge, "AndroidBridge")
+                            } else {
+                                addJavascriptInterface(authBridge, "KormoKariAndroid")
+                                addJavascriptInterface(authBridge, "KormoKariAndroidBridge")
                             }
 
                             // Register native runtime permissions & live GPS dispatch bridge
@@ -446,14 +478,22 @@ fun KormoKariPwaWebView(
                                 origin: String?,
                                 callback: android.webkit.GeolocationPermissions.Callback?
                             ) {
-                                val hasLocationPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                                val hasFine = androidx.core.content.ContextCompat.checkSelfPermission(
                                     ctx,
                                     android.Manifest.permission.ACCESS_FINE_LOCATION
                                 ) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
-                                if (hasLocationPermission) {
+                                val hasCoarse = androidx.core.content.ContextCompat.checkSelfPermission(
+                                    ctx,
+                                    android.Manifest.permission.ACCESS_COARSE_LOCATION
+                                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+                                if (hasFine || hasCoarse) {
                                     callback?.invoke(origin, true, false)
                                 } else {
+                                    com.example.permission.GeolocationPermissionHelper.pendingOrigin = origin
+                                    com.example.permission.GeolocationPermissionHelper.pendingCallback = callback
+
                                     val act = ctx.findActivity()
                                     if (act != null) {
                                         androidx.core.app.ActivityCompat.requestPermissions(
@@ -464,8 +504,9 @@ fun KormoKariPwaWebView(
                                             ),
                                             com.example.permission.KormoKariPermissionsBridge.REQ_CODE_LOCATION_FOREGROUND
                                         )
+                                    } else {
+                                        callback?.invoke(origin, false, false)
                                     }
-                                    callback?.invoke(origin, true, false)
                                 }
                             }
 
@@ -520,6 +561,8 @@ fun KormoKariPwaWebView(
                             }
 
                             override fun onPageFinished(view: WebView?, url: String?) {
+                                super.onPageFinished(view, url)
+                                (view?.context as? com.example.MainActivity)?.onWebViewPageFinished(url)
                                 com.example.permission.KormoKariWebMessageProtocolHandler.injectFacade(view)
                                 isLoading = false
                                 loadProgress = 1f
@@ -628,11 +671,19 @@ fun KormoKariPwaWebView(
                                 val targetUri = request?.url ?: return false
                                 val targetUrlString = targetUri.toString()
 
-                                // 1. In-App Social Authentication & Identity Provider Routing:
-                                // Facebook OAuth and Google web OAuth flows must use branded Chrome Custom Tabs,
-                                // NEVER loaded in an embedded WebView (protecting credentials & adhering to provider policies)
+                                val act = ctx.findActivity() ?: ctx
+                                if (targetUri.scheme?.equals("kormokari", ignoreCase = true) == true &&
+                                    targetUri.host?.equals("auth-callback", ignoreCase = true) == true
+                                ) {
+                                    val mainActivity = ctx.findActivity() as? com.example.MainActivity
+                                    if (mainActivity != null) {
+                                        mainActivity.processIncomingAuthIntent(Intent(Intent.ACTION_VIEW, targetUri))
+                                        return true
+                                    }
+                                }
+
                                 if (com.example.auth.BrandedCustomTabsHelper.isSocialAuthUrl(targetUrlString)) {
-                                    val launched = com.example.auth.BrandedCustomTabsHelper.launchBrandedCustomTab(ctx, targetUri)
+                                    val launched = com.example.auth.BrandedCustomTabsHelper.launchBrandedCustomTab(act, targetUri)
                                     return launched
                                 }
 
